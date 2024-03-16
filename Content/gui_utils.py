@@ -1,38 +1,65 @@
-import json
 import os
+import json
 
-settings_file = "gui_settings.json"
 
-def save_gui_size(width, height):
-    settings = load_settings()
-    settings['gui_size'] = {'width': width, 'height': height}
-    save_settings(settings)
+class GUIState:
+    """
+    This class manages saving and loading GUI state information.
+    """
 
-def get_saved_gui_size():
-    settings = load_settings()
-    return settings.get('gui_size', {'width': 800, 'height': 600})  # Default size
+    def __init__(self, app_name, data_dir="gui_data"):
+        self.app_name = app_name
+        self.data_dir = data_dir
+        self.data_file = os.path.join(self.data_dir, f"{self.app_name}.json")
 
-def save_last_image(image_path):
-    settings = load_settings()
-    settings['last_image'] = image_path
-    save_settings(settings)
+        # Ensure data directory exists
+        os.makedirs(self.data_dir, exist_ok=True)
 
-def load_last_image():
-    settings = load_settings()
-    return settings.get('last_image', None)
+        self.state = {"scale": None, "last_image": None}
+        self.load_state()
 
-def load_settings():
-    if os.path.exists(settings_file):
-        with open(settings_file, 'r') as file:
-            return json.load(file)
-    return {}
+    def save_state(self):
+        """
+        Saves the current GUI state to a JSON file.
+        """
+        with open(self.data_file, "w") as f:
+            json.dump(self.state, f)
 
-def save_settings(settings):
-    with open(settings_file, 'w') as file:
-        json.dump(settings, file, indent=4)
+    def load_state(self):
+        """
+        Loads the GUI state from a JSON file if it exists.
+        """
+        if os.path.exists(self.data_file):
+            with open(self.data_file, "r") as f:
+                try:
+                    self.state = json.load(f)
+                except json.JSONDecodeError:
+                    # Handle potential errors while loading JSON
+                    pass
 
-# Example usage in other parts of your application
-# To save GUI size: gui_utils.save_gui_size(1024, 768)
-# To get saved GUI size: width, height = gui_utils.get_saved_gui_size().values()
-# To save last viewed image path: gui_utils.save_last_image('path/to/image.png')
-# To load last viewed image path: last_image_path = gui_utils.load_last_image()
+    def get_scale(self):
+        """
+        Returns the saved scale value or None.
+        """
+        return self.state.get("scale")
+
+    def set_scale(self, scale):
+        """
+        Sets the scale value in the state and saves it.
+        """
+        self.state["scale"] = scale
+        self.save_state()
+
+    def get_last_image(self):
+        """
+        Returns the saved last image path or None.
+        """
+        return self.state.get("last_image")
+
+    def set_last_image(self, image_path):
+        """
+        Sets the last image path in the state and saves it.
+        """
+        self.state["last_image"] = image_path
+        self.save_state()
+

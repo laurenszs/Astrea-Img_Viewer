@@ -11,79 +11,50 @@ class FileViewer:
         self.root.title("File Viewer")
         self.image_viewer = image_viewer
 
-        # Set GUI size from saved settings
-        saved_size = gui_utils.get_saved_gui_size()
-        self.root.geometry(f"{saved_size['width']}x{saved_size['height']}")
-
-        self.view_mode = "flat"  # Default view mode: 'flat' or 'tree'
+        self.view_mode = "flat"  # Default view mode
 
         self.treeview = ttk.Treeview(self.root)
         self.treeview.pack(side="left", fill="both", expand=True)
 
         # Toggle view mode button
-        self.toggle_btn = ttk.Button(self.root, text="Switch to Tree View", command=self.toggle_view_mode)
+        toggle_text = "Switch to Tree View" if self.view_mode == "flat" else "Switch to Flat View"
+        self.toggle_btn = ttk.Button(self.root, text=toggle_text, command=self.toggle_view_mode)
         self.toggle_btn.pack(side="top", fill="x")
+
+        # Create GUI state object
+        self.gui_state = gui_utils.GUIState("File Viewer")
 
         self.load_files("G:/IMG")
 
-        # Bind window close event
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.treeview.bind("<<TreeviewSelect>>", self.on_select)
 
     def toggle_view_mode(self):
-        if self.view_mode == "flat":
-            self.view_mode = "tree"
-            self.toggle_btn.config(text="Switch to Flat View")
-        else:
-            self.view_mode = "flat"
-            self.toggle_btn.config(text="Switch to Tree View")
+        self.view_mode = "tree" if self.view_mode == "flat" else "flat"
+        self.toggle_text = "Switch to Tree View" if self.view_mode == "flat" else "Switch to Flat View"
+        self.toggle_btn.config(text=self.toggle_text)
         self.load_files("G:/IMG")
 
     def load_files(self, directory):
         self.treeview.delete(*self.treeview.get_children())
-        if self.view_mode == "flat":
-            self.load_files_flat(directory)
-        else:
-            self.load_files_tree(directory)
+        self.load_files_recursive(directory, "")
 
-    def load_files_flat(self, directory):
-        files = os.listdir(directory)
-        files.sort()
-        current_letter = None
-        for file in files:
-            file_path = os.path.join(directory, file)
-            if os.path.isdir(file_path) or not self.is_image_file(file_path):
-                continue
-            if not current_letter or file[0].upper() != current_letter:
-                current_letter = file[0].upper()
-                self.treeview.insert("", "end", text=current_letter, tags=("dividing_line",))
-            self.treeview.insert("", "end", text=file)
-
-        self.treeview.tag_configure("dividing_line", background="gray")
-        self.treeview.bind("<<TreeviewSelect>>", self.on_select)
-
-    def load_files_tree(self, directory, parent=""):
+    def load_files_recursive(self, directory, parent):
         for entry in os.listdir(directory):
             path = os.path.join(directory, entry)
-            is_dir = os.path.isdir(path)
-            if is_dir:
+            if os.path.isdir(path):
                 oid = self.treeview.insert(parent, "end", text=entry, open=False)
-                self.load_files_tree(path, oid)
-            else:
-                if self.is_image_file(path):
-                    self.treeview.insert(parent, "end", text=entry)
-
-        self.treeview.bind("<<TreeviewSelect>>", self.on_select)
+                self.load_files_recursive(path, oid)
+            elif self.is_image_file(path):
+                self.treeview.insert(parent, "end", text=entry)
 
     def on_select(self, event):
         selected_item = self.treeview.selection()
         if selected_item:
-            item = self.treeview.item(selected_item)
-            if self.view_mode == "flat":
-                current_path = os.path.join("G:/IMG", item["text"])
-            else:
-                current_path = self.get_full_path(selected_item[0])
+            current_path = self.get_full_path(selected_item[0])
             if os.path.isfile(current_path) and self.is_image_file(current_path):
                 self.image_viewer.show_image(current_path)
+                # Save the last image path using GUI state
+                self.gui_state.set_last_image(current_path)
 
     def get_full_path(self, item_id):
         path_components = []
@@ -94,40 +65,7 @@ class FileViewer:
         return os.path.join("G:/IMG", *reversed(path_components))
 
     def is_image_file(self, file_path):
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.gif']
-        file_extension = os.path.splitext(file_path)[1].lower()
-        return file_extension in valid_extensions
-
-    def on_close(self):
-        # Save GUI size and last viewed image path on app closure
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        gui_utils.save_gui_size(width, height)
-        if self.image_viewer.current_image_path:  # Make sure this attribute exists in ImageViewer
-            gui_utils.save_last_image(self.image_viewer.current_image_path)
-        self.root.destroy()
+        valid_extensions = ('.jpg', '.jpeg', '.png', '.gif')
+        return os.path.splitext(file_path)[1].lower() in valid_extensions
 
 
-def main():
-    root = tk.Tk()
-    image_viewer = ImageViewer(root)
-    file_viewer = FileViewer(root, image_viewer)
-
-    # Set minimum GUI size
-    #  gui_utils.set_minimum_gui_size(root)
-    last_image_path = gui_utils.load_last_image()
-    if last_image_path:
-        image_viewer.show_image(last_image_path)
-
-    gui_utils.save_gui_size(root.winfo_width(), root.winfo_height())
-    width, height = gui_utils.get_saved_gui_size().values()
-
-    if width | height:
-        root.geometry(f"{width}x{height}")
-
-    root.protocol("WM_DELETE_WINDOW", file_viewer)  # Correct placement
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()

@@ -1,7 +1,5 @@
 import tkinter as tk
 from PIL import Image, ImageTk
-import atexit
-import gui_utils
 
 
 class ImageViewer:
@@ -12,44 +10,42 @@ class ImageViewer:
         self.image_canvas = tk.Canvas(self.root)
         self.image_canvas.pack(side="right", fill="both", expand=True)
 
-        # Delayed call to show the last image
-        last_image_path = gui_utils.load_last_image()
-        if last_image_path:
-            root.after(100, self.show_image, last_image_path)  # Delay the call
-
-        # Bind the configure event to handle resizing
+        self.current_image_path = None
         self.image_canvas.bind("<Configure>", self.on_canvas_resize)
 
     def show_image(self, image_path):
+        self.current_image_path = image_path
+
         # Open the image
         image = Image.open(image_path)
 
-        # Calculate scaling factor to fit the image within the image canvas while maintaining aspect ratio
+        # Get the canvas's width and height
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+
+        # Ensure canvas dimensions are valid
+        if canvas_width > 1 and canvas_height > 1:
+            width_ratio, height_ratio = self.get_scale_ratios(image)
+            scale_factor = min(width_ratio, height_ratio)
+            self.resized_image = image.resize((int(image.width * scale_factor), int(image.height * scale_factor)))
+            self.photo = ImageTk.PhotoImage(self.resized_image)
+            self.center_and_display_image()
+        else:
+            # Optionally, you could log a message or set a flag to try redisplaying the image later
+            pass
+
+    def get_scale_ratios(self, image):
+        # Calculate scaling factor to fit the image within the canvas while maintaining aspect ratio
         width_ratio = self.image_canvas.winfo_width() / image.width
         height_ratio = self.image_canvas.winfo_height() / image.height
-        scale_factor = min(width_ratio, height_ratio)
+        return width_ratio, height_ratio
 
-        # Resize the image
-        new_width = int(image.width * scale_factor)
-        new_height = int(image.height * scale_factor)
-        image = image.resize((new_width, new_height))
-
-        # Convert to PhotoImage
-        photo = ImageTk.PhotoImage(image)
-
-        # Calculate coordinates to center the image
-        x = (self.image_canvas.winfo_width() - new_width) / 2
-        y = (self.image_canvas.winfo_height() - new_height) / 2
-
-        # Display the image
-        self.image_canvas.delete("all")  # Clear previous image
-        self.image_canvas.create_image(x, y, anchor="nw", image=photo)
-
-        # Keep reference to avoid garbage collection
-        self.image_canvas.image = photo
-        self.current_image_path = image_path
+    def center_and_display_image(self):
+        x = (self.image_canvas.winfo_width() - self.resized_image.width) / 2
+        y = (self.image_canvas.winfo_height() - self.resized_image.height) / 2
+        self.image_canvas.create_image(x, y, anchor="nw", image=self.photo)
+        self.image_canvas.image = self.photo
 
     def on_canvas_resize(self, event):
-        # Resize the image when the canvas is resized
         if self.current_image_path:
             self.show_image(self.current_image_path)
